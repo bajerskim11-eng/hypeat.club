@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Beboki Katowice: Misja — Demo</title>
+  <style>
+    :root { --gold:#f0c56a; --paper:#f4e6c4; --panel:#1c1612; }
+    * { box-sizing:border-box; }
+    html,body { margin:0;height:100%;background:#0a0806;color:var(--paper);font-family:Georgia,"Times New Roman",serif;overflow:hidden; }
+    #app { height:100%;display:flex;flex-direction:column; }
+    header { display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 16px;background:linear-gradient(#241c16,#140f0c);border-bottom:1px solid #4a3820; }
+    header b { color:var(--gold);letter-spacing:.12em;font-size:14px; }
+    #stage { flex:1;position:relative;display:flex;align-items:center;justify-content:center;background:#080604; }
+    canvas { display:block;max-width:100%;max-height:100%;cursor:crosshair; }
+    #msg { position:absolute;left:50%;top:14px;transform:translateX(-50%);background:rgba(12,8,6,.88);border:1px solid #6a5230;padding:8px 14px;border-radius:10px;max-width:86%;text-align:center;font-size:15px;pointer-events:none; }
+    #bar { display:flex;gap:8px;align-items:stretch;flex-wrap:wrap;padding:10px 12px;background:#16110e;border-top:1px solid #4a3820; }
+    .job { border:1px solid #6a5230;background:#2a2018;color:var(--paper);padding:8px 12px;border-radius:8px;font-family:inherit;cursor:pointer;min-width:110px; }
+    .job.active { border-color:var(--gold);background:#3a2a14;color:var(--gold); }
+    .job small { display:block;opacity:.7;font-size:11px; }
+    .job:disabled,.job.off { display:none; }
+    .util { margin-left:auto;display:flex;gap:8px;align-items:center;font-size:13px; }
+    .screen { position:absolute;inset:0;background:linear-gradient(180deg,rgba(8,6,10,.52),rgba(8,6,10,.82)),url("gfx/bg_osada.jpg") center/cover no-repeat;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:18px;text-align:center;z-index:6;overflow:auto; }
+    .screen.hidden { display:none; }
+    .screen h1 { color:var(--gold);margin:0 0 8px;font-size:30px; }
+    .screen p { max-width:640px;line-height:1.5;margin:6px 0; }
+    .row { display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin:12px 0; }
+    .card { width:210px;background:rgba(20,14,12,.78);border:1px solid #5a4030;border-radius:12px;padding:12px;text-align:left;backdrop-filter:blur(6px); }
+    .card h3 { margin:0 0 6px;color:var(--gold); }
+    .card.lit { border-color:var(--gold);box-shadow:0 0 18px rgba(240,197,106,.18); }
+    .card.locked { opacity:.45; }
+    .portraits { display:flex;gap:10px;justify-content:center;margin:6px 0; }
+    .portraits img { width:68px;height:88px;object-fit:cover;border-radius:8px;border:1px solid #5a4030;background:#111; }
+    button.main { background:#6b3f16;color:var(--paper);border:1px solid var(--gold);padding:11px 20px;border-radius:10px;font-size:16px;font-family:inherit;cursor:pointer; }
+    button.ghost { background:transparent;color:var(--paper);border:1px solid #6a5230;padding:10px 16px;border-radius:10px;font-family:inherit;cursor:pointer; }
+    button.main:disabled { opacity:.4;cursor:default; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <header>
+      <b>BEBOKI KATOWICE: MISJA</b>
+      <span id="hud">Osada pod Spodkiem</span>
+    </header>
+    <div id="stage">
+      <div id="osada" class="screen">
+        <h1>Osada pod Spodkiem</h1>
+        <div class="portraits">
+          <img src="fachura.jpeg" alt="Fachura">
+          <img src="hanys.jpeg" alt="Hanys">
+          <img src="hopla.jpeg" alt="Hopla">
+          <img src="podciep.jpeg" alt="Podciep">
+        </div>
+        <p>Dwie pierwsze misje demo. Ratujesz kundelki z familoków. Beboki nie giną — wracają mokre do szybu.</p>
+        <div class="row">
+          <div class="card" id="cardSzyb"><h3>Szyb</h3><p>12 beboków na wyjście. Ty jesteś brygadzistą.</p></div>
+          <div class="card" id="cardPsy"><h3>Psi zaułek</h3><p id="zaulek">Pusto. Czekają Burek, Lajka i Reks z rynku.</p></div>
+          <div class="card" id="cardSerce"><h3>Komora Serca</h3><p id="serceTxt">0 / 2 odłamki. Ciemno.</p></div>
+        </div>
+        <div class="row">
+          <button class="main" id="go1">Misja 1 · Kanał przy Galerii</button>
+          <button class="main" id="go2" disabled>Misja 2 · Dach tramwaju</button>
+        </div>
+        <p id="lockHint" style="opacity:.8;font-size:14px">Misja 2 otworzy się po wyprowadzeniu Burka i Lajki.</p>
+      </div>
+      <div id="win" class="screen hidden">
+        <h1 id="winTitle">Pieski w domu</h1>
+        <p id="wintext"></p>
+        <div class="row">
+          <button class="main" id="toOsada">Wróć pod Spodek</button>
+          <button class="ghost" id="again">Jeszcze raz tę misję</button>
+        </div>
+      </div>
+      <canvas id="c" width="960" height="540"></canvas>
+      <div id="msg"></div>
+    </div>
+    <div id="bar">
+      <button class="job active" data-job="chod">Wskazanie<small>zaznacz tylko</small></button>
+      <button class="job" data-job="latarnik">Latarnik <b id="nL">2</b><small>światło / pies</small></button>
+      <button class="job" data-job="budowniczy">Budowniczy <b id="nB">2</b><small>kładka / schody</small></button>
+      <button class="job" data-job="kopacz">Kopacz <b id="nK">2</b><small>ściana</small></button>
+      <button class="job" data-job="magnesiarz">Magnesiarz <b id="nM">2</b><small>krata / tramwaj</small></button>
+      <div class="util">
+        <span>Pieski <b id="dogsOut">0/2</b> · Wyjście <b id="home">0</b> · Mokre <b id="wet">0</b></span>
+        <button class="ghost" id="restart" type="button">Od nowa</button>
+      </div>
+    </div>
+  </div>
+<script>
+const W=960,H=540,T=24,COLS=40,ROWS=22;
+const canvas=document.getElementById("c");
+const ctx=canvas.getContext("2d");
+const MSG=document.getElementById("msg");
+const COLORS=["#4aa3d8","#6bb35a","#e07ab0","#9b7ad1","#e0a14a","#d06050"];
+const SPRITES=["fachura.jpeg","hanys.jpeg","hopla.jpeg","podciep.jpeg"];
+const IMG={};
+["fachura.jpeg","hanys.jpeg","hopla.jpeg","podciep.jpeg",
+ "gfx/bg_osada.jpg","gfx/bg_kanal.jpg","gfx/bg_most.jpg","gfx/bg_tram.jpg","gfx/bg_spodek.jpg"
+].forEach(src=>{ const im=new Image(); im.src=src; IMG[src]=im; });
+function ready(src){ const im=IMG[src]; return im&&im.complete&&im.naturalWidth; }
+
+const SAVE_KEY="beboki-demo-v2";
+let world={m1:false,m2:false,shards:0,dogs:[]};
+try{ const s=JSON.parse(localStorage.getItem(SAVE_KEY)||"{}"); Object.assign(world,s);}catch(e){}
+
+let map,units,dogs,shard,mission;
+let selected="chod",quota,spawnLeft,spawnT,playing,t=0,sayT=0;
+let home,wet,dogsSaved,needDogs,won;
+
+function persist(){ localStorage.setItem(SAVE_KEY, JSON.stringify(world)); }
+function say(s,sec){ MSG.textContent=s; sayT=sec||5.5; }
+function tile(c,r){ if(r<0||c<0||r>=ROWS||c>=COLS) return 1; return map[r][c]; }
+function solid(c,r){ const v=tile(c,r); return v===1||v===3||v===5; }
+
+function blank(){
+  map=Array.from({length:ROWS},()=>Array(COLS).fill(0));
+  for(let c=0;c<COLS;c++) for(let r=16;r<ROWS;r++) map[r][c]=1;
+}
+
+function buildMission1(){
+  blank();
+  map[15][5]=1; map[14][6]=1; map[13][7]=1;
+  for(let c=7;c<=11;c++) map[13][c]=1;
+  for(let c=14;c<=20;c++){ map[16][c]=2; map[17][c]=2; map[18][c]=2; }
+  for(let c=21;c<COLS;c++) map[16][c]=1;
+  for(let r=12;r<=15;r++) map[r][28]=3;
+  for(let r=13;r<=15;r++) map[r][38]=4;
+  map[15][37]=4;
+  return {
+    id:1, title:"Kanał przy Galerii",
+    jobs:{latarnik:2,budowniczy:2,kopacz:2,magnesiarz:0},
+    spawn:12,
+    hint:"1) Latarnik na schodkach — Burek. 2) Budowniczy nad wodą. 3) Kopacz przy ścianie Lajki.",
+    dogs:[
+      {name:"Burek",x:9*T+10,y:13*T,shade:"#6a3e28",need:"light"},
+      {name:"Lajka",x:32*T,y:16*T,shade:"#e6d3b8",need:"wall"}
+    ],
+    labels:[["schody → Burek",7*T,12.2*T],["woda",16*T,15.7*T],["ściana Lajki",29*T,11.4*T],["wyjście",36.2*T,12.6*T]],
+    shard:{x:36*T,y:16*T-18}
+  };
+}
+
+function buildMission2(){
+  blank();
+  // street, then gap of "tracks", tram platform raised
+  for(let c=12;c<=16;c++){ map[16][c]=2; map[17][c]=2; } // puddle / tracks as water
+  // tram body
+  for(let c=17;c<=26;c++) map[14][c]=1;
+  for(let c=17;c<=26;c++) for(let r=12;r<=13;r++) map[r][c]=6; // tram red
+  // stairs start empty — builder must make 15,16 up to 14
+  map[15][17]=0;
+  // metal grate blocking exit alley
+  for(let r=12;r<=15;r++) map[r][31]=5;
+  for(let r=13;r<=15;r++) map[r][38]=4;
+  map[15][37]=4;
+  // crate / dark stall left
+  for(let c=4;c<=8;c++) map[15][c]=1;
+  map[14][8]=1;
+  return {
+    id:2, title:"Dach tramwaju",
+    jobs:{latarnik:2,budowniczy:3,kopacz:0,magnesiarz:2},
+    spawn:12,
+    hint:"1) Latarnik przy budce — Reks. 2) Budowniczy robi schody na tramwaj (Punia na dachu). 3) Magnesiarz przy kracie.",
+    dogs:[
+      {name:"Reks",x:6*T,y:15*T,shade:"#3a2a22",need:"light"},
+      {name:"Punia",x:22*T,y:14*T,shade:"#c4a07a",need:"tram"}
+    ],
+    labels:[["budka Reksa",4*T,13.2*T],["tor / kałuża",13*T,15.6*T],["tramwaj + Punia",19*T,11.3*T],["krata",31*T+2,11.4*T],["wyjście",36*T,12.6*T]],
+    shard:{x:36*T,y:16*T-18}
+  };
+}
+
+function applyOsada(){
+  document.getElementById("go2").disabled=!world.m1;
+  document.getElementById("lockHint").style.display=world.m1?"none":"block";
+  const names=world.dogs.slice();
+  document.getElementById("zaulek").textContent=names.length
+    ? names.join(", ")+" śpią na workach. Pachnie mokrym futrem."
+    : "Pusto. Czekają Burek, Lajka i Reks z rynku.";
+  document.getElementById("cardPsy").classList.toggle("lit", names.length>0);
+  document.getElementById("serceTxt").textContent=world.shards+" / 2 odłamki."+(world.shards?" Żyłka światła pod Spodkiem.":" Ciemno.");
+  document.getElementById("cardSerce").classList.toggle("lit", world.shards>0);
+}
+
+function startMission(id){
+  const spec=id===2?buildMission2():buildMission1();
+  mission=spec;
+  units=[]; spawnLeft=spec.spawn; spawnT=0.35;
+  quota={...spec.jobs};
+  home=0; wet=0; dogsSaved=0; needDogs=spec.dogs.length; won=false;
+  dogs=spec.dogs.map(d=>({...d,saved:false,seen:false,dir:1}));
+  shard={x:spec.shard.x,y:spec.shard.y,taken:false,visible:false};
+  selected="chod"; playing=true; t=0;
+  document.getElementById("osada").classList.add("hidden");
+  document.getElementById("win").classList.add("hidden");
+  document.querySelectorAll(".job").forEach(b=>{
+    const j=b.dataset.job;
+    if(j==="chod") return;
+    b.classList.toggle("off", !quota[j]);
+  });
+  syncJobs(); updateHud();
+  say(spec.hint);
+}
+
+function syncJobs(){
+  document.getElementById("nL").textContent=quota.latarnik;
+  document.getElementById("nB").textContent=quota.budowniczy;
+  document.getElementById("nK").textContent=quota.kopacz;
+  document.getElementById("nM").textContent=quota.magnesiarz;
+  document.querySelectorAll(".job").forEach(b=>{
+    const j=b.dataset.job;
+    b.classList.toggle("active", j===selected);
+    if(j!=="chod") b.disabled=!quota[j]||quota[j]<=0;
+  });
+}
+function updateHud(){
+  document.getElementById("dogsOut").textContent=dogsSaved+"/"+needDogs;
+  document.getElementById("home").textContent=home;
+  document.getElementById("wet").textContent=wet;
+  document.getElementById("hud").textContent=playing&&mission
+    ? mission.title+" · zawód, potem bebok"
+    : "Osada pod Spodkiem";
+}
+
+document.getElementById("go1").onclick=()=>startMission(1);
+document.getElementById("go2").onclick=()=>{ if(world.m1) startMission(2); };
+document.getElementById("restart").onclick=()=>{ if(mission) startMission(mission.id); };
+document.getElementById("again").onclick=()=>{ if(mission) startMission(mission.id); };
+document.getElementById("toOsada").onclick=()=>{
+  playing=false;
+  document.getElementById("win").classList.add("hidden");
+  document.getElementById("osada").classList.remove("hidden");
+  applyOsada();
+  document.getElementById("hud").textContent="Osada pod Spodkiem";
+};
+document.querySelectorAll(".job").forEach(b=>b.onclick=()=>{ selected=b.dataset.job; syncJobs(); });
+
+canvas.addEventListener("click",ev=>{
+  if(!playing) return;
+  const box=canvas.getBoundingClientRect();
+  const x=(ev.clientX-box.left)*(W/box.width);
+  const y=(ev.clientY-box.top)*(H/box.height);
+  let best=null,bestD=28;
+  units.forEach(u=>{
+    if(u.gone||u.home) return;
+    const d=Math.hypot(u.x-x,u.y-18-y);
+    if(d<bestD){bestD=d;best=u;}
+  });
+  if(!best){ say("Kliknij beboka. Zawód wybierz na dole."); return; }
+  if(selected==="chod"){ say("Wybierz Latarnika, Budowniczego, Kopacza albo Magnesiarza."); return; }
+  if(!quota[selected]||quota[selected]<=0){ say("Tego zawodu już nie mamy."); return; }
+  if(best.job!=="chod"){ say("Ten już pracuje."); return; }
+  quota[selected]--;
+  best.job=selected;
+  best.work=selected==="budowniczy"?8:selected==="kopacz"?1.3:selected==="magnesiarz"?0:0;
+  if(selected==="latarnik") best.light=100;
+  syncJobs();
+  const tips={
+    latarnik:"Świeci w miejscu. Pies w cieniu wyjdzie.",
+    budowniczy:"Buduje przed nosem: kładkę albo schodek w górę, gdy stoi przy krawędzi.",
+    kopacz:"Kopie ścianę przed sobą.",
+    magnesiarz:"Staje przy kracie i zdejmuje ją magnesem."
+  };
+  say(tips[selected]);
+});
+
+function wallAt(c){
+  for(let r=0;r<ROWS;r++) if(tile(c,r)===3) return true;
+  return false;
+}
+function grateUp(){
+  for(let r=12;r<=15;r++) if(tile(31,r)===5) return true;
+  return false;
+}
+
+function stepUnit(u,dt){
+  if(u.gone||u.home) return;
+  const c=Math.floor(u.x/T), r=Math.floor((u.y-2)/T);
+  if(tile(c,r)===2 && u.job!=="budowniczy"){
+    u.gone=true; wet++; say("Bebok wpadł. Wraca pod Spodek suchy i urażony."); updateHud(); return;
+  }
+  if(tile(c,r)===4){ u.home=true; home++; updateHud(); return; }
+
+  if(u.job==="latarnik"){
+    dogs.forEach(d=>{
+      if(!d.seen && Math.hypot(d.x-u.x,d.y-u.y)<92){
+        d.seen=true; say(d.name+" widzi lampę. Dobry pies — do złotego światła.");
+      }
+    });
+    return;
+  }
+
+  if(u.job==="magnesiarz"){
+    const fc=Math.floor(u.x/T)+u.face;
+    let hit=false;
+    for(let rr=r-2;rr<=r+1;rr++){
+      if(tile(fc,rr)===5 || tile(Math.floor(u.x/T),rr)===5){
+        hit=true;
+        for(let r2=0;r2<ROWS;r2++){
+          if(map[r2][fc]===5) map[r2][fc]=0;
+          if(map[r2][31]===5) map[r2][31]=0;
+        }
+        u.job="chod";
+        say("Krata poszła w górę. Magnesiarz zadowolony.");
+        return;
+      }
+    }
+    // walk until grate
+    const front=Math.floor((u.x+u.face*9)/T);
+    const chest=Math.floor((u.y-12)/T);
+    const under=Math.floor((u.y+3)/T);
+    if(solid(front,chest)) u.face*=-1;
+    if(!solid(c,under)&&tile(c,under)!==2) u.y+=110*dt;
+    else { u.y=under*T; u.x+=u.face*42*dt; }
+    return;
+  }
+
+  if(u.job==="budowniczy"){
+    const fc=Math.floor(u.x/T)+u.face;
+    const under=Math.floor((u.y+3)/T);
+    // bridge water
+    if(tile(fc,16)===2 && u.work>0){
+      map[16][fc]=1; u.work-=1; u.x+=u.face*10;
+      if(u.work<=0) u.job="chod";
+      return;
+    }
+    // stair up if facing a higher floor one tile ahead
+    if(u.work>0 && tile(fc,under-1)===0 && (tile(fc,under)===0||tile(fc,under)===1) && tile(c,under)===1){
+      // if next ground is higher (tram at row 14 while we stand 16)
+      if(tile(fc,14)===1 || tile(fc,14)===6 || tile(fc+1,14)===1){
+        map[under-1][c]=1;
+        u.work-=1;
+        u.y= (under-1)*T;
+        if(u.work<=0) u.job="chod";
+        return;
+      }
+    }
+    u.job="chod";
+  }
+
+  if(u.job==="kopacz"){
+    const fc=Math.floor(u.x/T)+u.face;
+    let hit=false;
+    for(let rr=r-2;rr<=r+1;rr++){
+      if(tile(fc,rr)===3){
+        hit=true; u.work-=dt;
+        if(u.work<=0){
+          for(let r2=0;r2<ROWS;r2++) if(map[r2][fc]===3) map[r2][fc]=0;
+          u.job="chod"; say("Ściana pękła.");
+        }
+        return;
+      }
+    }
+    if(!hit) u.job="chod";
+  }
+
+  const front=Math.floor((u.x+u.face*9)/T);
+  const chest=Math.floor((u.y-12)/T);
+  const under=Math.floor((u.y+3)/T);
+  if(solid(front,chest)) u.face*=-1;
+  if(!solid(c,under)&&tile(c,under)!==2) u.y+=110*dt;
+  else { u.y=under*T; u.x+=u.face*42*dt; }
+}
+
+function stepDog(d,dt){
+  if(d.saved) return;
+  if(d.need==="wall" && !d.seen && !wallAt(28)){
+    if(units.some(u=>!u.gone&&!u.home&&Math.hypot(u.x-d.x,u.y-d.y)<56)){
+      d.seen=true; say("Lajka z 3. kopcoka! Idzie za stadem.");
+    }
+  }
+  if(d.need==="tram" && !d.seen){
+    if(units.some(u=>!u.gone&&!u.home&&Math.abs(u.y-d.y)<20&&Math.abs(u.x-d.x)<40)){
+      d.seen=true; say("Punia z dachu tramwaju. Suczka-kundel, łapy w błocie.");
+    }
+  }
+  if(!d.seen) return;
+  const c=Math.floor(d.x/T);
+  const under=Math.floor((d.y+3)/T);
+  if(tile(c,under)===2){ d.x-=28*dt; return; }
+  if(tile(c,Math.floor((d.y-2)/T))===5){ d.x-=20*dt; return; }
+  if(!solid(c,under)&&tile(c,under)!==6) d.y+=90*dt;
+  else {
+    d.y=under*T;
+    d.x+=34*dt;
+  }
+  if(tile(c,Math.floor((d.y-2)/T))===4){
+    d.saved=true; dogsSaved++;
+    say(d.name+" w złotym świetle. Jeszcze "+(needDogs-dogsSaved)+".");
+    updateHud();
+    if(dogsSaved>=needDogs) shard.visible=true;
+  }
+}
+
+function maybeWin(){
+  if(won||dogsSaved<needDogs) return;
+  const idle=spawnLeft<=0&&units.every(u=>u.gone||u.home);
+  if(!(idle||home+wet>=7||shard.taken||shard.visible)) return;
+  if(shard.visible) shard.taken=true;
+  won=true; playing=false;
+  dogs.forEach(d=>{ if(d.saved && !world.dogs.includes(d.name)) world.dogs.push(d.name); });
+  if(mission.id===1) world.m1=true;
+  if(mission.id===2) world.m2=true;
+  if(shard.taken) world.shards=Math.max(world.shards, mission.id);
+  persist();
+  document.getElementById("winTitle").textContent=mission.id===2?"Rynek oddycha":"Pieski w domu";
+  document.getElementById("wintext").textContent=
+    "Uratowane pieski: "+dogsSaved+"/"+needDogs+". W wyjściu: "+home+". Z wody: "+wet+". Odłamki Serca: "+world.shards+"/2.";
+  document.getElementById("win").classList.remove("hidden");
+}
+
+function step(dt){
+  t+=dt;
+  if(sayT>0){ sayT-=dt; if(sayT<=0) MSG.textContent=""; }
+  spawnT-=dt;
+  if(spawnLeft>0&&spawnT<=0){
+    units.push({x:2*T+6,y:16*T,face:1,job:"chod",work:0,light:0,gone:false,home:false,color:COLORS[units.length%COLORS.length],spr:SPRITES[units.length%SPRITES.length]});
+    spawnLeft--; spawnT=1.12;
+  }
+  units.forEach(u=>stepUnit(u,dt));
+  dogs.forEach(d=>stepDog(d,dt));
+  if(shard.visible&&!shard.taken){
+    if(units.some(u=>!u.gone&&!u.home&&Math.hypot(u.x-shard.x,u.y-shard.y)<26)){
+      shard.taken=true; say("Odłamek Serca Śląska.");
+    }
+  }
+  maybeWin();
+}
+
+function cover(src){
+  const im=IMG[src]; if(!im||!im.complete||!im.naturalWidth) return false;
+  const ir=im.width/im.height, cr=W/H;
+  let dw,dh,dx,dy;
+  if(ir>cr){ dh=H; dw=H*ir; dx=(W-dw)/2; dy=0; }
+  else { dw=W; dh=W/ir; dx=0; dy=(H-dh)/2; }
+  ctx.drawImage(im,dx,dy,dw,dh);
+  return true;
+}
+function draw(){
+  ctx.fillStyle="#0c0a14"; ctx.fillRect(0,0,W,H);
+  const bg = mission&&mission.id===2 ? "gfx/bg_tram.jpg" : "gfx/bg_kanal.jpg";
+  if(!cover(bg)) cover("gfx/bg_osada.jpg");
+  ctx.fillStyle="rgba(8,6,12,.38)"; ctx.fillRect(0,0,W,H);
+  for(let r=0;r<ROWS;r++){
+    for(let c=0;c<COLS;c++){
+      const x=c*T,y=r*T,v=map[r][c];
+      if(v===1){ ctx.fillStyle=(c+r)%2?"#4a3828":"#403024"; ctx.fillRect(x,y,T,T); }
+      else if(v===2){
+        ctx.fillStyle=mission&&mission.id===2?"#2a2a2a":"#16384a";
+        ctx.fillRect(x,y,T,T);
+        ctx.fillStyle=mission&&mission.id===2?"rgba(200,180,80,.25)":"rgba(140,210,230,.3)";
+        ctx.fillRect(x,y+4+Math.sin(t*3+c)*2,T,3);
+      } else if(v===3){ ctx.fillStyle="#6a4a34"; ctx.fillRect(x,y,T,T); ctx.strokeStyle="#2a1810"; ctx.strokeRect(x+3,y+3,T-6,T-6); }
+      else if(v===4){ ctx.fillStyle="rgba(240,197,106,"+(0.35+Math.sin(t*4)*0.12)+")"; ctx.fillRect(x,y,T,T); }
+      else if(v===5){ ctx.fillStyle="#6a6e74"; ctx.fillRect(x,y,T,T); ctx.strokeStyle="#111"; ctx.strokeRect(x+2,y+2,T-4,T-4); }
+      else if(v===6){ ctx.fillStyle="#c81e2e"; ctx.fillRect(x,y,T,T); ctx.fillStyle="#eee"; ctx.fillRect(x+4,y+6,6,8); }
+    }
+  }
+  dogs.forEach(d=>{
+    if(d.saved) return;
+    if(d.need==="light"&&!d.seen){
+      ctx.fillStyle="rgba(0,0,0,.72)";
+      ctx.fillRect(d.x-40,d.y-70,90,80);
+      ctx.fillStyle="#f0c56a"; ctx.font="bold 16px Georgia"; ctx.fillText("?",d.x-4,d.y-30);
+      return;
+    }
+    if(d.need==="wall"&&wallAt(28)&&!d.seen) return;
+    drawDog(d);
+  });
+  if(shard.visible&&!shard.taken){
+    ctx.fillStyle="#f4d27a";
+    ctx.beginPath();
+    ctx.moveTo(shard.x,shard.y-8); ctx.lineTo(shard.x+7,shard.y); ctx.lineTo(shard.x,shard.y+10); ctx.lineTo(shard.x-7,shard.y);
+    ctx.closePath(); ctx.fill();
+  }
+  units.forEach(u=>{
+    if(u.gone||u.home) return;
+    if(u.job==="latarnik"){
+      const g=ctx.createRadialGradient(u.x,u.y-14,6,u.x,u.y-14,u.light);
+      g.addColorStop(0,"rgba(255,210,120,.32)"); g.addColorStop(1,"rgba(255,210,120,0)");
+      ctx.fillStyle=g; ctx.beginPath(); ctx.arc(u.x,u.y-14,u.light,0,Math.PI*2); ctx.fill();
+    }
+    drawBebok(u);
+  });
+  if(mission){
+    ctx.fillStyle="rgba(244,230,196,.85)"; ctx.font="12px Georgia";
+    mission.labels.forEach(([s,x,y])=>ctx.fillText(s,x,y));
+  }
+}
+function drawBebok(u){
+  const im=IMG[u.spr];
+  const bob=Math.sin(t*10+u.x)*1.2;
+  ctx.save();
+  ctx.translate(u.x, u.y+bob);
+  if(u.face<0) ctx.scale(-1,1);
+  if(im&&im.complete&&im.naturalWidth) ctx.drawImage(im,-18,-52,36,54);
+  else { ctx.fillStyle=u.color; ctx.fillRect(-7,-22,14,16); }
+  ctx.restore();
+  if(u.job!=="chod"){
+    ctx.fillStyle="rgba(8,6,4,.65)";
+    ctx.fillRect(u.x-22,u.y-64,44,13);
+    ctx.fillStyle="#f0c56a"; ctx.font="10px Georgia";
+    ctx.fillText(u.job,u.x-20,u.y-54);
+  }
+}
+function drawDog(d){
+  const bob=Math.sin(t*6+d.x)*0.8;
+  ctx.save(); ctx.translate(d.x,d.y+bob);
+  ctx.fillStyle="rgba(0,0,0,.28)"; ctx.beginPath(); ctx.ellipse(0,4,12,4,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle=d.shade;
+  ctx.beginPath(); ctx.ellipse(0,-6,13,8,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(12,-12,6,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle="#111"; ctx.beginPath(); ctx.arc(14,-13,1.4,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle="#c45"; ctx.beginPath(); ctx.arc(16,-11,1.2,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+  ctx.fillStyle="#f0c56a"; ctx.font="11px Georgia"; ctx.fillText(d.name,d.x-14,d.y-26);
+}
+
+applyOsada();
+let last=performance.now();
+function loop(now){
+  const dt=Math.min(0.05,(now-last)/1000); last=now;
+  if(playing){ step(dt); draw(); }
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

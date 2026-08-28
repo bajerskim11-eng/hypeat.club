@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Beboki × HypEat — Przewodnik po Katowicach</title>
+  <meta name="theme-color" content="#0b0907" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    :root {
+      --bg:#0b0907; --paper:#f3e6c8; --gold:#e8c36a; --line:#6a542e;
+      --lime:#d6ff3a; --panel:rgba(16,12,10,.92); --ok:#8fd18f;
+    }
+    * { box-sizing:border-box; }
+    html,body { margin:0; height:100%; background:var(--bg); color:var(--paper);
+      font-family: Georgia, "Times New Roman", serif; }
+    button, input { font: inherit; }
+    #app { height:100%; display:flex; flex-direction:column; position:relative; overflow:hidden; }
+
+    .view {
+      display:flex; flex-direction:column; flex:1; min-height:0;
+      opacity:0; pointer-events:none; position:absolute; inset:0;
+      transform: translateY(12px) scale(.985);
+      transition: opacity .45s ease, transform .45s cubic-bezier(.2,.8,.2,1);
+    }
+    .view.on { opacity:1; pointer-events:auto; position:relative; transform:none; }
+    .tab {
+      display:flex; flex-direction:column; flex:1; min-height:0;
+      opacity:0; pointer-events:none; position:absolute; inset:0;
+      transform: translateX(18px);
+      transition: opacity .28s ease, transform .28s ease;
+    }
+    .tab.on { opacity:1; pointer-events:auto; position:relative; transform:none; }
+
+    #pick {
+      background:
+        radial-gradient(ellipse at 50% 0%, #3a2a18 0%, #0b0907 62%);
+      padding:28px 16px 36px; overflow:auto;
+    }
+    #pick h1 {
+      text-align:center; color:var(--gold); margin:4px 0 6px; letter-spacing:.16em;
+      animation: fadeDown .7s ease both;
+    }
+    #pick .sub { text-align:center; opacity:.75; margin:0 0 22px; font-size:14px; animation: fadeDown .7s .08s ease both; }
+    .agents { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; max-width:760px; margin:0 auto; }
+    .agent {
+      background:var(--panel); border:1px solid var(--line); border-radius:18px;
+      padding:12px; text-align:center; cursor:pointer; color:inherit;
+      transform: translateY(16px); opacity:0; animation: rise .55s ease forwards;
+      transition: transform .2s ease, border-color .2s, box-shadow .2s;
+    }
+    .agents .agent:nth-child(1){ animation-delay:.12s }
+    .agents .agent:nth-child(2){ animation-delay:.2s }
+    .agents .agent:nth-child(3){ animation-delay:.28s }
+    .agents .agent:nth-child(4){ animation-delay:.36s }
+    .agent:hover { transform: translateY(-4px); border-color:var(--gold);
+      box-shadow:0 12px 30px rgba(232,195,106,.18); }
+    .agent img { width:100%; height:188px; object-fit:contain; object-position:center; border-radius:12px; background:transparent; }
+    .agent b { display:block; color:var(--gold); margin-top:8px; }
+    .agent span { display:block; font-size:12px; opacity:.75; margin-top:4px; }
+    .note { max-width:720px; margin:20px auto 0; font-size:12px; opacity:.55; text-align:center; }
+
+    header.top {
+      display:flex; align-items:center; gap:10px; padding:8px 12px;
+      background:linear-gradient(#2a2016,#14100c); border-bottom:1px solid var(--line); z-index:2;
+    }
+    header.top img.mini { width:40px; height:40px; object-fit:contain; object-position:top; background:transparent; }
+    header.top .who { flex:1; }
+    header.top .who b { display:block; color:var(--gold); font-size:14px; }
+    header.top .who small { opacity:.7; }
+    .pts { background:#1a140e; border:1px solid var(--line); border-radius:999px; padding:4px 10px; font-size:13px; color:var(--lime); }
+    nav.tabs { display:flex; background:#120e0a; border-bottom:1px solid var(--line); z-index:2; }
+    nav.tabs button { flex:1; background:none; border:0; color:var(--paper); padding:10px 4px; cursor:pointer; opacity:.5; transition: opacity .2s, color .2s, box-shadow .2s; }
+    nav.tabs button.on { opacity:1; color:var(--gold); box-shadow:inset 0 -2px 0 var(--gold); }
+
+    /* AVATAR STAGE */
+    .stage {
+      position:relative; height:210px; flex:0 0 210px; overflow:hidden;
+      background:
+        radial-gradient(ellipse at 50% 80%, rgba(232,195,106,.22), transparent 55%),
+        linear-gradient(#1a140f, #0c0a08);
+      border-bottom:1px solid var(--line);
+    }
+    .stage::before {
+      content:""; position:absolute; inset:auto 20% -40px 20%; height:80px;
+      background:radial-gradient(ellipse, rgba(232,195,106,.35), transparent 70%);
+      filter:blur(8px); pointer-events:none;
+    }
+    .ava-wrap {
+      position:absolute; left:50%; bottom:-18px; width:200px; height:240px;
+      transform: translateX(-50%);
+      animation: idle 3.6s ease-in-out infinite;
+      transform-origin: 50% 100%;
+    }
+    .stage.talk .ava-wrap { animation: talk 0.28s ease-in-out infinite; }
+    .stage.listen .ava-wrap { animation: listen 1.2s ease-in-out infinite; }
+    .stage img.hero {
+      width:200px; height:240px; object-fit:contain; object-position:top center; background:transparent;
+      filter: drop-shadow(0 10px 18px rgba(0,0,0,.55));
+      -webkit-mask-image: linear-gradient(#000 78%, transparent 100%);
+      mask-image: linear-gradient(#000 78%, transparent 100%);
+    }
+    .halo {
+      position:absolute; left:50%; top:18px; width:14px; height:14px; margin-left:28px;
+      border-radius:50%; background:#ffe08a; box-shadow:0 0 16px 6px rgba(255,210,80,.55);
+      opacity:.85; animation: pulse 1.8s ease-in-out infinite;
+    }
+    .status {
+      position:absolute; left:12px; bottom:10px;
+      background:rgba(10,8,6,.72); border:1px solid var(--line); border-radius:999px;
+      padding:4px 10px; font-size:11px; letter-spacing:.04em; color:var(--gold);
+    }
+    .status i { display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--lime); margin-right:6px; }
+    .stage.talk .status i { animation: blink .35s linear infinite; }
+    .stage.listen .status i { background:#7ecbff; animation: blink .8s linear infinite; }
+
+    #chatLog { flex:1; overflow:auto; padding:12px; display:flex; flex-direction:column; gap:10px; }
+    .bubble {
+      max-width:86%; padding:10px 12px; border-radius:14px; font-size:15px; line-height:1.35;
+      white-space:pre-wrap; animation: bubbleIn .32s ease both;
+    }
+    .bubble.bot { background:#1c1610; border:1px solid var(--line); align-self:flex-start; }
+    .bubble.me { background:#2a2410; border:1px solid #8a7040; align-self:flex-end; }
+    .typing { display:flex; gap:5px; padding:12px 14px; width:64px; }
+    .typing span { width:7px; height:7px; border-radius:50%; background:var(--gold); opacity:.35; animation: dots 1s infinite; }
+    .typing span:nth-child(2){ animation-delay:.15s } .typing span:nth-child(3){ animation-delay:.3s }
+
+    .chips { display:flex; gap:6px; flex-wrap:wrap; padding:0 12px 8px; }
+    .chips button {
+      background:#1a140e; color:var(--paper); border:1px solid var(--line);
+      border-radius:999px; padding:6px 10px; font-size:12px; cursor:pointer;
+      transition: background .15s, transform .15s;
+    }
+    .chips button:hover { background:#2a2014; transform:translateY(-1px); }
+    .composer {
+      display:flex; gap:8px; padding:8px 12px calc(10px + env(safe-area-inset-bottom));
+      border-top:1px solid var(--line); background:#120e0a;
+    }
+    .composer input { flex:1; background:#1a140e; border:1px solid var(--line); color:var(--paper); border-radius:12px; padding:10px 12px; }
+    .composer button.go { background:var(--gold); color:#1a1208; border:0; border-radius:12px; padding:10px 14px; font-weight:700; cursor:pointer; }
+    .composer button.mic {
+      width:44px; border:1px solid var(--line); background:#1a140e; color:var(--paper);
+      border-radius:12px; cursor:pointer;
+    }
+    .composer button.mic.hot { background:#3a2010; border-color:var(--gold); color:var(--gold); animation: pulse 1s infinite; }
+
+    #map { flex:1; min-height:240px; }
+    .leaflet-container { background:#1a1612; font-family:inherit; }
+    .spotSheet { max-height:42%; overflow:auto; background:#120e0a; border-top:1px solid var(--line); padding:12px; animation: fadeUp .3s ease; }
+    .spotSheet h3 { margin:0 0 4px; color:var(--gold); }
+    .spotSheet .meta { font-size:13px; opacity:.8; }
+    .spotSheet .row { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+    .spotSheet button { background:#1a140e; color:var(--paper); border:1px solid var(--line); border-radius:10px; padding:8px 12px; cursor:pointer; }
+    .spotSheet button.primary { background:var(--gold); color:#1a1208; border:0; font-weight:700; }
+
+    .scroll { padding:16px; overflow:auto; flex:1; }
+    .radar { background:#14100c; border:1px solid var(--line); border-radius:16px; padding:14px; margin-bottom:12px; }
+    .radar .dist { font-size:28px; color:var(--lime); margin:6px 0 0; }
+    .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:12px; margin-bottom:10px; animation: rise .4s ease both; }
+    .card h3 { margin:0 0 6px; color:var(--gold); }
+    .stamps { display:flex; gap:8px; flex-wrap:wrap; }
+    .stamp { width:64px; height:64px; border-radius:12px; border:1px dashed var(--line); display:grid; place-items:center; font-size:11px; text-align:center; opacity:.45; transition: opacity .3s, background .3s; }
+    .stamp.got { opacity:1; border-style:solid; background:#1a2010; color:var(--ok); animation: pop .35s ease; }
+    .warn { font-size:12px; opacity:.65; margin-top:8px; }
+    .ghost { background:#1a140e; color:#f3e6c8; border:1px solid #6a542e; border-radius:10px; padding:8px 12px; cursor:pointer; }
+
+    #photoBox {
+      position:fixed; inset:0; background:#000; z-index:50; display:flex; flex-direction:column;
+      opacity:0; pointer-events:none; transform:scale(1.02);
+      transition: opacity .3s ease, transform .3s ease;
+    }
+    #photoBox.on { opacity:1; pointer-events:auto; transform:none; }
+    #cam { flex:1; width:100%; object-fit:cover; background:#000; }
+    #overlayChar { position:absolute; bottom:80px; right:8px; width:36vw; max-width:180px; pointer-events:none; animation: idle 3s ease-in-out infinite; }
+    .photoBar { position:absolute; left:0; right:0; bottom:0; display:flex; gap:8px; padding:12px; background:linear-gradient(transparent,#000); }
+    .photoBar button { flex:1; padding:12px; border-radius:12px; border:0; cursor:pointer; font-weight:700; }
+
+    @keyframes idle { 0%,100%{ transform:translateX(-50%) translateY(0) } 50%{ transform:translateX(-50%) translateY(-7px) } }
+    @keyframes talk { 0%,100%{ transform:translateX(-50%) translateY(0) scale(1) } 50%{ transform:translateX(-50%) translateY(-5px) scale(1.03) } }
+    @keyframes listen { 0%,100%{ transform:translateX(-50%) scale(1) } 50%{ transform:translateX(-50%) scale(1.04) } }
+    @keyframes pulse { 0%,100%{ opacity:.7 } 50%{ opacity:1 } }
+    @keyframes blink { 50%{ opacity:.2 } }
+    @keyframes dots { 0%,80%,100%{ transform:translateY(0); opacity:.3 } 40%{ transform:translateY(-4px); opacity:1 } }
+    @keyframes rise { from{ opacity:0; transform:translateY(14px) } to{ opacity:1; transform:none } }
+    @keyframes fadeDown { from{ opacity:0; transform:translateY(-8px) } to{ opacity:1; transform:none } }
+    @keyframes fadeUp { from{ opacity:0; transform:translateY(8px) } to{ opacity:1; transform:none } }
+    @keyframes bubbleIn { from{ opacity:0; transform:translateY(8px) scale(.98) } to{ opacity:1; transform:none } }
+    @keyframes pop { from{ transform:scale(.7) } to{ transform:scale(1) } }
+  </style>
+</head>
+<body>
+<div id="app">
+  <div id="pick" class="view on">
+    <h1>BEBOKI × HYPEAT</h1>
+    <p class="sub">Wybierz avatara. Będzie mówił, słuchał i prowadził po Katowicach.</p>
+    <div class="agents">
+      <button class="agent" data-id="hopla"><img src="hopla.png" alt="Hopla"><b>Hopla</b><span>Zwiadowczyni · feed i nowości</span></button>
+      <button class="agent" data-id="podciep"><img src="podciep.png" alt="Podciep"><b>Podciep</b><span>Latarnik · wieczór i klimaty</span></button>
+      <button class="agent" data-id="hanys"><img src="hanys.png" alt="Hanys"><b>Hanys</b><span>Budowniczy · kuchnia śląska</span></button>
+      <button class="agent" data-id="fachura"><img src="fachura.png" alt="Fachura"><b>Fachura</b><span>Wynalazca · lunch i nowinki</span></button>
+    </div>
+    <p class="note">Głos idzie z syntezatora w telefonie / przeglądarce (po polsku, jeśli system ma głos PL). Mikrofon = mówisz do beboka.</p>
+  </div>
+
+  <div id="shell" class="view">
+    <header class="top">
+      <img class="mini" id="av" src="hopla.png" alt="">
+      <div class="who"><b id="nm">Hopla</b><small id="role">Zwiadowczyni · Katowice</small></div>
+      <div class="pts">✦ <b id="pts">0</b></div>
+    </header>
+    <nav class="tabs">
+      <button class="on" data-tab="chat">Czat</button>
+      <button data-tab="mapa">Mapa</button>
+      <button data-tab="hunt">Polowanie</button>
+      <button data-tab="karta">Karta</button>
+    </nav>
+
+    <div id="tab-chat" class="tab on">
+      <div class="stage" id="stage">
+        <div class="ava-wrap">
+          <span class="halo" id="halo"></span>
+          <img class="hero" id="hero" src="hopla.png" alt="">
+        </div>
+        <div class="status"><i></i><span id="stxt">czeka</span></div>
+      </div>
+      <div id="chatLog"></div>
+      <div class="chips" id="chips"></div>
+      <form class="composer" id="ask">
+        <button type="button" class="mic" id="mic" title="Mów">🎙</button>
+        <input id="q" autocomplete="off" placeholder="Napisz albo kliknij mikrofon…" />
+        <button class="go" type="submit">Pytaj</button>
+      </form>
+    </div>
+
+    <div id="tab-mapa" class="tab">
+      <div id="map"></div>
+      <div class="spotSheet" id="sheet">
+        <h3>Stolica pod Spodkiem</h3>
+        <div class="meta">Wybierz pinezkę — lokale to punkty gry terenowej.</div>
+      </div>
+    </div>
+
+    <div id="tab-hunt" class="tab">
+      <div class="scroll">
+        <div class="radar">
+          <div class="meta">Radar (GPS albo tryb demo)</div>
+          <p class="dist" id="nearTxt">szukam sygnału…</p>
+          <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+            <button class="ghost" id="btnGps">Włącz GPS</button>
+            <button class="ghost" id="btnDemo">Tryb demo: Rynek</button>
+          </div>
+        </div>
+        <div id="huntList"></div>
+      </div>
+    </div>
+
+    <div id="tab-karta" class="tab">
+      <div class="scroll">
+        <div class="card">
+          <h3>Karta HypEat × Beboki</h3>
+          <p>3 pieczątki = nagroda u partnera (demo). Zdjęcie + opinia = +10 ✦.</p>
+          <div class="stamps" id="stamps"></div>
+          <p id="reward" class="warn"></p>
+        </div>
+        <div class="card">
+          <h3>Avatar</h3>
+          <p>Bebok na scenie oddycha, podskakuje gdy mówi, świeci lampą gdy słucha. Głos: Web Speech API w urządzeniu.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="photoBox">
+  <video id="cam" autoplay playsinline></video>
+  <img id="overlayChar" alt="">
+  <div class="photoBar">
+    <button type="button" id="shot" style="background:#e8c36a">Zrób zdjęcie</button>
+    <button type="button" id="closeCam" style="background:#f3e6c8">Zamknij</button>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const AGENTS = {
+  hopla: { name:"Hopla", role:"Zwiadowczyni · nowości i miejsca dla rodzin", img:"hopla.png",
+    pitch:1.15, rate:1.05,
+    voice:"Hop! Ja skaczę pierwsza. Jak chcesz szybko coś dobrego w centrum — mów." },
+  podciep: { name:"Podciep", role:"Latarnik · wieczór, światło, spokojne stoły", img:"podciep.png",
+    pitch:0.92, rate:0.95,
+    voice:"Lampę już zapaliłem. Wieczorem w Katowicach lepiej iść tam, gdzie ciepło i nie za głośno." },
+  hanys: { name:"Hanys", role:"Budowniczy · rolada, kluski, żur, familok", img:"hanys.png",
+    pitch:0.85, rate:0.98,
+    voice:"Jo, godo my o jedzeniu po naszemu. Jak chcesz śląski obiad — jo wiem kaj." },
+  fachura: { name:"Fachura", role:"Wynalazca · lunch, nowinki, szybki plan", img:"fachura.png",
+    pitch:1.02, rate:1.08,
+    voice:"Dwa kilofy gotowe. Układam trasę jak warsztat: cel, czas, budżet." }
+};
+
+const SPOTS = [
+  { id:"aioli", name:"AiOLI inspired by Katowice", area:"Rynek 5", lat:50.2596, lng:19.0216, agent:"hopla", tag:"centrum · śniadania · rodzinnie", dishes:"Śniadania, burgery, brunche. Orientacyjnie 30–70 zł.", promo:"Punkt HypEat: check-in + zdjęcie = pieczątka Hopli.", age:"all" },
+  { id:"kaktusy", name:"Kaktusy Kato", area:"Plac Dworcowy / deptak", lat:50.2587, lng:19.0178, agent:"fachura", tag:"śląskie + europejskie · lunch", dishes:"Kuchnia śląska i europejska, dojrzewająca wołowina. Lunch pn–pt 12–14.", promo:"Dobry punkt na lunch po pociągu.", age:"all" },
+  { id:"basiliana", name:"Basiliana", area:"Mariacka 24", lat:50.2578, lng:19.0257, agent:"hopla", tag:"włoskie · pizza · ogródek", dishes:"Pizza i kuchnia włoska. Ogródek na Mariackiej.", promo:"Wieczór na Mariackiej — Hopla skacze po dachach obok.", age:"all" },
+  { id:"sledz", name:"Ambasada śledzia", area:"Mariacka 25", lat:50.2579, lng:19.0260, agent:"podciep", tag:"śląski klimat · wieczór", dishes:"Śledzie, klimaty baru, wieczór na Mariackiej.", promo:"18+ wieczorem. Dzieci: raczej lunch w tygodniu.", age:"18" },
+  { id:"zurownia", name:"Żurownia", area:"centrum / śląskie comfort", lat:50.2558, lng:19.0239, agent:"hanys", tag:"żur · rolada · reinterpretacje", dishes:"Hajer, Ślązak, kulebele — żur i klasyka w nowej formie.", promo:"Tu Hanys stawia pieczątkę za śląski obiad.", age:"all" },
+  { id:"prohibicja", name:"Śląska Prohibicja", area:"centrum", lat:50.2604, lng:19.0248, agent:"hanys", tag:"śląskie · europejskie", dishes:"Kuchnia polska i śląska, klimat kamienicy.", promo:"Kolejny punkt na mapę Hanysa.", age:"all" },
+  { id:"sztolnia", name:"Sztolnia · Chleb Mięso Wino", area:"Silesia City Center, Chorzowska 109", lat:50.2709, lng:19.0024, agent:"fachura", tag:"steak · lunch tygodniowy · kopalnia", dishes:"Steki, burger na własnej bułce, lunch tygodniowy 12–16.", promo:"Bebok-gość w starej hali kopalni — spawn Fachury.", age:"all" },
+  { id:"byfyj", name:"Cafe Byfyj", area:"Nikiszowiec", lat:50.2463, lng:19.0814, agent:"podciep", tag:"familok · śląskie · kawa", dishes:"Kawa i kuchnia inspirowana Śląskiem w Nikiszowcu.", promo:"Wyprawa poza centrum. Podciep świeci drogę przez familoki.", age:"all" },
+  { id:"max", name:"Max (tył Spodka)", area:"al. Korfantego 35", lat:50.2660, lng:19.0255, agent:"hopla", tag:"klasyk · przy Spodku", dishes:"Stare menu Maksa w nowym miejscu za Lodowiskiem.", promo:"Spawn Hopli pod Spodkiem — stolica osady.", age:"all" },
+  { id:"altus", name:"27th Floor", area:"Uniwersytecka 13, Altus", lat:50.2619, lng:19.0236, agent:"podciep", tag:"widok · kolacja", dishes:"Restauracja z widokiem. Raczej kolacja niż obiad z dziećmi.", promo:"Latarnia Podciepa na 27. piętrze.", age:"12" }
+];
+
+const state = {
+  agent:"hopla",
+  pts:Number(localStorage.getItem("bebok_pts")||0),
+  stamps:JSON.parse(localStorage.getItem("bebok_stamps")||"[]"),
+  pos:null, map:null, markers:{}, photoSpot:null, rec:null
+};
+
+const stage = () => document.getElementById("stage");
+function setMood(mood, label) {
+  const s = stage();
+  if (!s) return;
+  s.classList.remove("talk","listen");
+  if (mood) s.classList.add(mood);
+  document.getElementById("stxt").textContent = label || "czeka";
+}
+
+function pickVoice() {
+  const list = speechSynthesis.getVoices();
+  return list.find(v => /^pl/i.test(v.lang)) || list.find(v => /pl/i.test(v.lang)) || list[0];
+}
+function speak(text) {
+  if (!window.speechSynthesis) return;
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text.replace(/[•✦]/g," ").replace(/\n+/g,". "));
+  const ag = AGENTS[state.agent];
+  u.lang = "pl-PL";
+  u.pitch = ag.pitch; u.rate = ag.rate; u.voice = pickVoice();
+  setMood("talk", ag.name + " mówi");
+  u.onend = u.onerror = () => setMood("", "czeka");
+  speechSynthesis.speak(u);
+}
+speechSynthesis.onvoiceschanged = () => {};
+
+function save() {
+  localStorage.setItem("bebok_pts", state.pts);
+  localStorage.setItem("bebok_stamps", JSON.stringify(state.stamps));
+  document.getElementById("pts").textContent = state.pts;
+  renderStamps();
+}
+function haversine(a,b,c,d){
+  const R=6371e3, to=x=>x*Math.PI/180;
+  const φ1=to(a), φ2=to(c), Δφ=to(c-a), Δλ=to(d-b);
+  const s=Math.sin(Δφ/2)**2 + Math.cos(φ1)*Math.cos(φ2)*Math.sin(Δλ/2)**2;
+  return 2*R*Math.asin(Math.sqrt(s));
+}
+function nearest() {
+  if (!state.pos) return null;
+  return SPOTS.map(s => ({s, m: haversine(state.pos.lat,state.pos.lng,s.lat,s.lng)})).sort((a,b)=>a.m-b.m)[0];
+}
+
+function answer(text) {
+  const t = text.toLowerCase();
+  const ag = AGENTS[state.agent];
+  const pick = ids => SPOTS.filter(s => ids.includes(s.id));
+  let hits = [];
+  if (/śląsk|slask|rolad|klusk|żur|zur|familok|hanys/.test(t)) hits = pick(["zurownia","prohibicja","byfyj","kaktusy"]);
+  else if (/pizza|włos|wlos|wino|mariack/.test(t)) hits = pick(["basiliana","sledz"]);
+  else if (/dzieci|rodzin|śniad|sniad|brunch/.test(t)) hits = pick(["aioli","max","byfyj"]);
+  else if (/steak|mięso|mieso|scc|silesia|sztoln/.test(t)) hits = pick(["sztolnia"]);
+  else if (/widok|wież|wiecz|romanty|kolac/.test(t)) hits = pick(["altus","sztolnia","basiliana"]);
+  else if (/tanio|budget|lunch|szybko/.test(t)) hits = pick(["zurownia","kaktusy","aioli"]);
+  else if (/spodek|osada|centrum|gdzie zjeść|gdzie zjesc|restaur/.test(t)) hits = pick(["max","aioli","kaktusy","zurownia"]);
+  else hits = SPOTS.filter(s => s.agent === state.agent).slice(0,3);
+  if (!hits.length) hits = SPOTS.slice(0,3);
+  const lines = hits.map(s => "• " + s.name + " (" + s.area + ") — " + s.dishes);
+  return ag.voice + "\n\n" + lines.join("\n");
+}
+
+function addBubble(msg, who) {
+  const el = document.createElement("div");
+  el.className = "bubble " + who;
+  el.textContent = msg;
+  const log = document.getElementById("chatLog");
+  log.appendChild(el);
+  log.scrollTop = 9e9;
+  return el;
+}
+function typing() {
+  const el = document.createElement("div");
+  el.className = "bubble bot typing";
+  el.innerHTML = "<span></span><span></span><span></span>";
+  document.getElementById("chatLog").appendChild(el);
+  document.getElementById("chatLog").scrollTop = 9e9;
+  return el;
+}
+function bot(msg, voice=true) {
+  const t = typing();
+  setTimeout(() => {
+    t.remove();
+    addBubble(msg, "bot");
+    if (voice) speak(msg);
+  }, 420);
+}
+function me(msg) { addBubble(msg, "me"); }
+
+function setAgent(id) {
+  state.agent = id;
+  const a = AGENTS[id];
+  document.getElementById("av").src = a.img;
+  document.getElementById("hero").src = a.img;
+  document.getElementById("nm").textContent = a.name;
+  document.getElementById("role").textContent = a.role;
+  document.getElementById("chatLog").innerHTML = "";
+  const hello = a.voice + " Jestem Twoim avatarem. Pytaj głosem albo pismem — znam stoły w Katowicach.";
+  bot(hello);
+  const chips = ["Śląski obiad","Coś dla dzieci","Mariacka wieczorem","Lunch do 50 zł","Przy Spodku"];
+  document.getElementById("chips").innerHTML = chips.map(c => "<button type='button'>"+c+"</button>").join("");
+}
+
+function goShell(id) {
+  setAgent(id);
+  document.getElementById("pick").classList.remove("on");
+  document.getElementById("shell").classList.add("on");
+  document.getElementById("pts").textContent = state.pts;
+  renderStamps();
+  setTimeout(initMap, 80);
+  renderHunt();
+}
+
+document.querySelectorAll(".agent").forEach(btn => btn.onclick = () => goShell(btn.dataset.id));
+document.getElementById("chips").onclick = e => {
+  if (e.target.tagName !== "BUTTON") return;
+  document.getElementById("q").value = e.target.textContent;
+  document.getElementById("ask").requestSubmit();
+};
+document.getElementById("ask").onsubmit = e => {
+  e.preventDefault();
+  const v = document.getElementById("q").value.trim();
+  if (!v) return;
+  me(v);
+  document.getElementById("q").value = "";
+  bot(answer(v));
+};
+
+document.querySelectorAll("nav.tabs button").forEach(b => {
+  b.onclick = () => {
+    document.querySelectorAll("nav.tabs button").forEach(x => x.classList.remove("on"));
+    b.classList.add("on");
+    ["chat","mapa","hunt","karta"].forEach(id => {
+      document.getElementById("tab-"+id).classList.toggle("on", b.dataset.tab===id);
+    });
+    if (b.dataset.tab==="mapa" && state.map) setTimeout(() => state.map.invalidateSize(), 280);
+  };
+});
+
+function initMap() {
+  if (state.map) { state.map.invalidateSize(); return; }
+  state.map = L.map("map").setView([50.2596, 19.0216], 14);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution:"&copy; OpenStreetMap", maxZoom:19 }).addTo(state.map);
+  SPOTS.forEach(s => {
+    const m = L.circleMarker([s.lat,s.lng], { radius:9, color:"#e8c36a", fillColor:"#d6ff3a", fillOpacity:.85, weight:2 }).addTo(state.map);
+    m.on("click", () => openSpot(s));
+    state.markers[s.id] = m;
+  });
+}
+function openSpot(s) {
+  const ag = AGENTS[s.agent];
+  document.getElementById("sheet").innerHTML =
+    "<h3>"+s.name+"</h3><div class='meta'>"+s.area+" · "+s.tag+"<br>"+s.dishes+"<br>"+s.promo+"</div>"+
+    "<div class='row'><button class='primary' data-act='check'>Check-in</button>"+
+    "<button data-act='foto'>Zdjęcie z "+ag.name+"</button>"+
+    "<button data-act='talk'>Pogadaj</button></div>";
+  document.getElementById("sheet").onclick = e => {
+    const act = e.target.dataset.act;
+    if (act==="check") checkIn(s);
+    if (act==="foto") openCam(s);
+    if (act==="talk") {
+      document.querySelector('[data-tab="chat"]').click();
+      bot(ag.name+" przy "+s.name+". "+s.dishes+" "+s.promo);
+    }
+  };
+}
+function checkIn(s) {
+  if (!state.stamps.includes(s.id)) {
+    state.stamps.push(s.id); state.pts += 10; save();
+    bot("Pieczątka zbita: "+s.name+". Masz "+state.stamps.length+"/3 do kuponu demo.");
+  } else bot("Tu już byłeś: "+s.name+".");
+  renderHunt();
+}
+function renderStamps() {
+  const box = document.getElementById("stamps");
+  if (!box) return;
+  box.innerHTML = SPOTS.slice(0,8).map(s =>
+    "<div class='stamp "+(state.stamps.includes(s.id)?"got":"")+"'>"+s.name.split(" ")[0]+"</div>"
+  ).join("");
+  const r = document.getElementById("reward");
+  r.textContent = state.stamps.length>=3
+    ? "Kupon demo odblokowany — do wymiany, gdy lokal podpisze regulamin nagród."
+    : "Zbierz jeszcze "+(3-state.stamps.length)+" pieczątki.";
+}
+function renderHunt() {
+  const n = nearest();
+  const el = document.getElementById("nearTxt");
+  if (!state.pos) el.textContent = "brak pozycji — GPS albo demo";
+  else if (n) el.textContent = n.m<1000 ? Math.round(n.m)+" m do "+n.s.name : (n.m/1000).toFixed(1)+" km do "+n.s.name;
+  document.getElementById("huntList").innerHTML = SPOTS.map(s => {
+    const ag = AGENTS[s.agent];
+    const m = state.pos ? Math.round(haversine(state.pos.lat,state.pos.lng,s.lat,s.lng)) : null;
+    const near = m!==null && m<120;
+    return "<div class='card'><h3>"+s.name+"</h3><div class='meta'>"+ag.name+" dyżuruje · "+s.area+(m!==null?" · "+m+" m":"")+"</div>"+
+      "<p>"+(near?"Bebok w zasięgu — gadaj i rób zdjęcie.":s.promo)+"</p>"+
+      "<div style='display:flex;gap:8px;flex-wrap:wrap;margin-top:8px'>"+
+      "<button class='go' style='background:#e8c36a;color:#1a1208;border:0;border-radius:10px;padding:8px 12px;cursor:pointer' onclick='checkIn(SPOTS.find(x=>x.id===\""+s.id+"\"))'>Check-in</button>"+
+      "<button class='ghost' onclick='openCam(SPOTS.find(x=>x.id===\""+s.id+"\"))'>AR-zdjęcie</button></div></div>";
+  }).join("");
+}
+
+document.getElementById("btnGps").onclick = () => {
+  if (!navigator.geolocation) return alert("Brak GPS");
+  navigator.geolocation.getCurrentPosition(p => {
+    state.pos = { lat:p.coords.latitude, lng:p.coords.longitude };
+    if (state.map) {
+      L.circleMarker([state.pos.lat,state.pos.lng], {radius:7,color:"#d6ff3a"}).addTo(state.map);
+      state.map.setView([state.pos.lat,state.pos.lng], 15);
+    }
+    renderHunt();
+  }, () => alert("Brak zgody na lokalizację"), { enableHighAccuracy:true, timeout:8000 });
+};
+document.getElementById("btnDemo").onclick = () => {
+  state.pos = { lat:50.2596, lng:19.0216 };
+  if (state.map) state.map.setView([50.2596,19.0216], 16);
+  renderHunt();
+  document.querySelector('[data-tab="chat"]').click();
+  bot("Stoimy na Rynku. AiOLI jest kilka kroków — Hopla powinna być w zasięgu.");
+};
+
+async function openCam(s) {
+  state.photoSpot = s;
+  document.getElementById("overlayChar").src = AGENTS[s.agent].img;
+  document.getElementById("photoBox").classList.add("on");
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:"environment" }, audio:false });
+    document.getElementById("cam").srcObject = stream;
+  } catch (err) { alert("Kamera potrzebuje HTTPS i zgody."); }
+}
+document.getElementById("closeCam").onclick = () => {
+  const v = document.getElementById("cam");
+  if (v.srcObject) v.srcObject.getTracks().forEach(t => t.stop());
+  document.getElementById("photoBox").classList.remove("on");
+};
+document.getElementById("shot").onclick = () => {
+  state.pts += 5;
+  if (state.photoSpot && !state.stamps.includes(state.photoSpot.id)) {
+    state.stamps.push(state.photoSpot.id); state.pts += 10;
+  }
+  save();
+  bot("Zdjęcie z bebokiem zapisane jako check-in.");
+  document.getElementById("closeCam").click();
+};
+
+/* Mikrofon */
+const Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
+document.getElementById("mic").onclick = () => {
+  if (!Rec) return alert("Ta przeglądarka nie ma rozpoznawania mowy. Wpisz pytanie.");
+  if (state.rec) { state.rec.stop(); return; }
+  const r = new Rec();
+  r.lang = "pl-PL"; r.interimResults = false;
+  state.rec = r;
+  document.getElementById("mic").classList.add("hot");
+  setMood("listen", "słucha");
+  r.onresult = ev => {
+    const t = ev.results[0][0].transcript;
+    document.getElementById("q").value = t;
+    document.getElementById("ask").requestSubmit();
+  };
+  r.onend = () => {
+    state.rec = null;
+    document.getElementById("mic").classList.remove("hot");
+    if (!speechSynthesis.speaking) setMood("", "czeka");
+  };
+  r.start();
+};
+</script>
+</body>
+</html>

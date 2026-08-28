@@ -1,0 +1,38 @@
+{
+  "url": "http://127.0.0.1:8081/",
+  "viewports": {
+    "desktop": {
+      "width": 1280,
+      "height": 800,
+      "status": 200,
+      "title": "Beboki × HypEat",
+      "hasCanvas": false,
+      "bodyTextLen": 338,
+      "bodyTextHash": "93aff4345a2501eacb297382a755bb8bffd27df1151f8aa53662bdbfd1c1b1e0",
+      "bodyTextPrefix": "HYPEAT · KATOWICE Beboki Wybierz avatara. Będzie mówił, słuchał ",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-built.png"
+    },
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "status": 200,
+      "title": "Beboki × HypEat",
+      "hasCanvas": false,
+      "bodyTextLen": 338,
+      "bodyTextHash": "93aff4345a2501eacb297382a755bb8bffd27df1151f8aa53662bdbfd1c1b1e0",
+      "bodyTextPrefix": "HYPEAT · KATOWICE Beboki Wybierz avatara. Będzie mówił, słuchał ",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-built-mobile.png"
+    }
+  },
+  "brandWarnings": [],
+  "authWarnings": [],
+  "verdictFile": "/workspace/screenshots/app-builder-built.json",
+  "divergesFromBaseline": false,
+  "baselineReasons": []
+}

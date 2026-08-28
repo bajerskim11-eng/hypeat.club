@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Beboki — Fragment Serca Śląska</title>
+  <style>
+    :root {
+      --coal: #1a1410;
+      --ember: #e8a54b;
+      --gold: #f4d27a;
+      --moss: #6b8f71;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; height: 100%;
+      background: radial-gradient(ellipse at top, #2a2218, #0d0b09 70%);
+      color: #f3e6c8;
+      font-family: "Georgia", "Times New Roman", serif;
+      overflow: hidden;
+    }
+    #hud {
+      position: absolute; inset: 0 0 auto 0;
+      padding: 16px 20px;
+      display: flex; justify-content: space-between; align-items: flex-start;
+      pointer-events: none; z-index: 2;
+    }
+    #hud h1 { margin: 0; font-size: 18px; letter-spacing: .08em; text-transform: uppercase; color: var(--gold); }
+    #hud p { margin: 4px 0 0; font-size: 13px; opacity: .85; }
+    #select {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      background: radial-gradient(ellipse at center, #3a2c1c, #0c0a08 72%);
+      z-index: 5; padding: 24px;
+    }
+    #select h1 { margin: 0 0 8px; font-size: 36px; color: var(--gold); }
+    #select .sub { margin: 0 0 28px; max-width: 560px; text-align: center; line-height: 1.45; opacity: .9; }
+    .row { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
+    .card {
+      width: 160px; cursor: pointer; text-align: center;
+      background: #1c1612; border: 1px solid #5a4630; border-radius: 14px;
+      padding: 10px; transition: transform .15s, border-color .15s;
+    }
+    .card:hover { transform: translateY(-4px); border-color: var(--ember); }
+    .card img { width: 140px; height: 180px; object-fit: contain; background: #2a221c; border-radius: 8px; }
+    .card b { display: block; margin-top: 8px; color: var(--gold); }
+    .card span { display: block; font-size: 12px; opacity: .75; margin-top: 2px; }
+    canvas { display: block; margin: 0 auto; image-rendering: pixelated; }
+    #win {
+      display: none; position: absolute; inset: 0;
+      background: rgba(8,6,4,.78);
+      align-items: center; justify-content: center; flex-direction: column;
+      z-index: 6; text-align: center; padding: 24px;
+    }
+    #win.show { display: flex; }
+    #win h2 { color: var(--gold); font-size: 32px; margin: 0 0 8px; }
+    button {
+      margin-top: 16px; pointer-events: auto;
+      background: #6b3f16; color: #f8e7c0; border: 1px solid var(--gold);
+      padding: 10px 18px; border-radius: 8px; cursor: pointer; font-family: inherit; font-size: 15px;
+    }
+  </style>
+</head>
+<body>
+  <div id="select">
+    <h1>Uniwersum Beboków</h1>
+    <p class="sub">Skarbnik czeka w podziemiach Katowic. Wybierz beboka i znajdź pierwszy fragment Serca Śląska. Strzałki / WASD — ruch, E — podnieś.</p>
+    <div class="row">
+      <div class="card" data-id="fachura"><img src="fachura.jpeg" alt="Fachura"><b>Fachura</b><span>dwa kilofy światła</span></div>
+      <div class="card" data-id="hanys"><img src="hanys.jpeg" alt="Hanys"><b>Hanys</b><span>stary kilof i łatki</span></div>
+      <div class="card" data-id="hopla"><img src="hopla.jpeg" alt="Hopla"><b>Hopla</b><span>skok i plecak</span></div>
+      <div class="card" data-id="podciep"><img src="podciep.jpeg" alt="Podciep"><b>Podciep</b><span>lampa w mroku</span></div>
+    </div>
+  </div>
+  <div id="hud">
+    <div>
+      <h1 id="who">—</h1>
+      <p>Znajdź złote serce. Unikaj zapadlisk.</p>
+    </div>
+    <div id="status">Fragmenty: 0 / 1</div>
+  </div>
+  <canvas id="c" width="960" height="540"></canvas>
+  <div id="win">
+    <h2>Fragment Serca Śląska</h2>
+    <p>Kamień pulsuje ciepłem. Skarbnik kiwa głową: „To dopiero początek. Katowice wciąż czekają.”</p>
+    <button id="again">Wróć do wyboru beboka</button>
+  </div>
+  <script>
+    const canvas = document.getElementById("c");
+    const ctx = canvas.getContext("2d");
+    const TILE = 48;
+    const COLS = 20, ROWS = 11;
+    // 0 floor, 1 wall, 2 pit, 3 heart, 4 start
+    const MAP = [
+      "11111111111111111111",
+      "14400000011100000001",
+      "11111000000000011101",
+      "10000001111100000101",
+      "10111000000001110101",
+      "10100001111000000101",
+      "10101110000111011101",
+      "10000000110000000001",
+      "11111000000111111001",
+      "10000001110000000301",
+      "11111111111111111111",
+    ].map(r => r.split("").map(Number));
+
+    const heroes = {
+      fachura: { name: "Fachura", img: "fachura.jpeg", color: "#4aa3d8", light: 4.2 },
+      hanys:   { name: "Hanys",   img: "hanys.jpeg",   color: "#6bb35a", light: 3.4 },
+      hopla:   { name: "Hopla",   img: "hopla.jpeg",   color: "#e07ab0", light: 3.6 },
+      podciep: { name: "Podciep", img: "podciep.jpeg", color: "#9b7ad1", light: 5.0 },
+    };
+
+    const images = {};
+    Object.entries(heroes).forEach(([id, h]) => {
+      const im = new Image();
+      im.src = h.img;
+      images[id] = im;
+    });
+
+    let heroId = "fachura";
+    let px = 1.5, py = 1.5, vx = 0, vy = 0;
+    let keys = {};
+    let got = false;
+    let t = 0;
+
+    function reset(id) {
+      heroId = id;
+      px = 1.6; py = 1.6; vx = 0; vy = 0; got = false; t = 0;
+      document.getElementById("who").textContent = heroes[id].name;
+      document.getElementById("status").textContent = "Fragmenty: 0 / 1";
+      document.getElementById("win").classList.remove("show");
+      document.getElementById("select").style.display = "none";
+    }
+
+    document.querySelectorAll(".card").forEach(card => {
+      card.onclick = () => reset(card.dataset.id);
+    });
+    document.getElementById("again").onclick = () => {
+      document.getElementById("select").style.display = "flex";
+    };
+
+    addEventListener("keydown", e => { keys[e.key.toLowerCase()] = true; if (["arrowup","arrowdown","arrowleft","arrowright"," "].includes(e.key.toLowerCase())) e.preventDefault(); });
+    addEventListener("keyup", e => { keys[e.key.toLowerCase()] = false; });
+
+    function tileAt(x, y) {
+      const c = Math.floor(x), r = Math.floor(y);
+      if (r < 0 || c < 0 || r >= ROWS || c >= COLS) return 1;
+      return MAP[r][c];
+    }
+
+    function blocked(x, y) {
+      const t = tileAt(x, y);
+      return t === 1 || t === 2;
+    }
+
+    function loop() {
+      requestAnimationFrame(loop);
+      if (document.getElementById("select").style.display !== "none" && document.getElementById("select").style.display !== "") {
+        // still on select until first pick; canvas can idle
+      }
+      t += 0.016;
+      const speed = heroId === "hopla" ? 3.15 : 2.55;
+      let dx = 0, dy = 0;
+      if (keys["a"] || keys["arrowleft"]) dx -= 1;
+      if (keys["d"] || keys["arrowright"]) dx += 1;
+      if (keys["w"] || keys["arrowup"]) dy -= 1;
+      if (keys["s"] || keys["arrowdown"]) dy += 1;
+      if (dx || dy) {
+        const l = Math.hypot(dx, dy);
+        dx /= l; dy /= l;
+        const nx = px + dx * speed * 0.016;
+        const ny = py + dy * speed * 0.016;
+        if (!blocked(nx, py)) px = nx;
+        if (!blocked(px, ny)) py = ny;
+      }
+
+      if (!got && tileAt(px, py) === 3) {
+        got = true;
+        document.getElementById("status").textContent = "Fragmenty: 1 / 1";
+        setTimeout(() => document.getElementById("win").classList.add("show"), 280);
+      }
+
+      draw();
+    }
+
+    function draw() {
+      ctx.fillStyle = "#0b0907";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      const lightR = heroes[heroId].light;
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          const x = c * TILE, y = r * TILE;
+          const kind = MAP[r][c];
+          const dist = Math.hypot(c + .5 - px, r + .5 - py);
+          const vis = Math.max(0, 1 - dist / lightR);
+          if (kind === 1) {
+            ctx.fillStyle = shade("#3a2a1c", vis * 0.55);
+            ctx.fillRect(x, y, TILE, TILE);
+            ctx.fillStyle = shade("#2a1c14", vis * 0.4);
+            ctx.fillRect(x + 4, y + 4, TILE - 8, TILE - 8);
+          } else if (kind === 2) {
+            ctx.fillStyle = shade("#120806", vis);
+            ctx.fillRect(x, y, TILE, TILE);
+            ctx.strokeStyle = shade("#6a3020", vis);
+            ctx.strokeRect(x + 6, y + 6, TILE - 12, TILE - 12);
+          } else {
+            ctx.fillStyle = shade("#5a4630", vis * 0.85);
+            ctx.fillRect(x, y, TILE, TILE);
+            ctx.fillStyle = shade("#4a3828", vis * 0.5);
+            if ((c + r) % 2 === 0) ctx.fillRect(x + 2, y + 2, TILE - 4, TILE - 4);
+          }
+          if (kind === 3 && !got) {
+            ctx.save();
+            ctx.translate(x + 24, y + 24);
+            ctx.rotate(Math.sin(t * 2) * 0.1);
+            ctx.fillStyle = shade("#f0c35a", Math.min(1, vis + 0.3));
+            heart(ctx, 0, 0, 12 + Math.sin(t * 3) * 1.5);
+            ctx.restore();
+          }
+        }
+      }
+
+      const hx = px * TILE, hy = py * TILE;
+      const img = images[heroId];
+      if (img && img.complete) {
+        ctx.drawImage(img, hx - 22, hy - 34, 44, 56);
+      } else {
+        ctx.fillStyle = heroes[heroId].color;
+        ctx.beginPath(); ctx.arc(hx, hy - 8, 14, 0, Math.PI * 2); ctx.fill();
+      }
+      // lamp glow
+      const g = ctx.createRadialGradient(hx, hy, 10, hx, hy, lightR * TILE);
+      g.addColorStop(0, "rgba(255,200,90,0.18)");
+      g.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
+    function shade(hex, a) {
+      const n = parseInt(hex.slice(1), 16);
+      let r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+      r = Math.round(r * a); g = Math.round(g * a); b = Math.round(b * a);
+      return `rgb(${r},${g},${b})`;
+    }
+    function heart(ctx, x, y, s) {
+      ctx.beginPath();
+      ctx.moveTo(x, y + s * 0.3);
+      ctx.bezierCurveTo(x, y - s * 0.4, x - s, y - s * 0.1, x, y + s);
+      ctx.bezierCurveTo(x + s, y - s * 0.1, x, y - s * 0.4, x, y + s * 0.3);
+      ctx.fill();
+    }
+
+    loop();
+  </script>
+</body>
+</html>

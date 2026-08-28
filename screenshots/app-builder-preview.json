@@ -1,0 +1,36 @@
+{
+  "url": "http://127.0.0.1:8080/",
+  "viewports": {
+    "desktop": {
+      "width": 1280,
+      "height": 800,
+      "status": 200,
+      "title": "hypeat.club",
+      "hasCanvas": false,
+      "bodyTextLen": 1757,
+      "bodyTextHash": "3eeea857da11c32df495a07fbd462a2819c45a7136cd749ed1e033c289b10100",
+      "bodyTextPrefix": "hypeat.club Profil Tablica Lokal Schronisko KLUB STOŁÓW KATOWIC ",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-preview.png"
+    },
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "status": 200,
+      "title": "hypeat.club",
+      "hasCanvas": false,
+      "bodyTextLen": 1731,
+      "bodyTextHash": "581a5546def1fd944e6cdf7cbb3ba78060722640526fa9889664e5c3a10ea4bd",
+      "bodyTextPrefix": "hypeat.club Wejdź KLUB STOŁÓW KATOWIC Pamiętnik wizyt. Punkty. P",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-preview-mobile.png"
+    }
+  },
+  "brandWarnings": [],
+  "authWarnings": [],
+  "verdictFile": "/workspace/screenshots/app-builder-preview.json"
+}
