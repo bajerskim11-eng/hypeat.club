@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppRouteImport } from './routes/app'
+import { Route as Hot24RouteImport } from './routes/hot24'
 import { Route as JaRouteImport } from './routes/ja'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as LokalRouteImport } from './routes/lokal'
@@ -29,6 +30,11 @@ const IndexRoute = IndexRouteImport.update({
 const AppRoute = AppRouteImport.update({
   id: '/app',
   path: '/app',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const Hot24Route = Hot24RouteImport.update({
+  id: '/hot24',
+  path: '/hot24',
   getParentRoute: () => rootRouteImport,
 } as any)
 const JaRoute = JaRouteImport.update({
@@ -80,6 +86,7 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/app': typeof AppRoute
+  '/hot24': typeof Hot24Route
   '/ja': typeof JaRoute
   '/login': typeof LoginRoute
   '/lokal': typeof LokalRoute
@@ -93,6 +100,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/app': typeof AppRoute
+  '/hot24': typeof Hot24Route
   '/ja': typeof JaRoute
   '/login': typeof LoginRoute
   '/lokal': typeof LokalRoute
@@ -107,6 +115,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/app': typeof AppRoute
+  '/hot24': typeof Hot24Route
   '/ja': typeof JaRoute
   '/login': typeof LoginRoute
   '/lokal': typeof LokalRoute
@@ -122,6 +131,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/app'
+    | '/hot24'
     | '/ja'
     | '/login'
     | '/lokal'
@@ -135,6 +145,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/app'
+    | '/hot24'
     | '/ja'
     | '/login'
     | '/lokal'
@@ -148,6 +159,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/app'
+    | '/hot24'
     | '/ja'
     | '/login'
     | '/lokal'
@@ -162,6 +174,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AppRoute: typeof AppRoute
+  Hot24Route: typeof Hot24Route
   JaRoute: typeof JaRoute
   LoginRoute: typeof LoginRoute
   LokalRoute: typeof LokalRoute
@@ -187,6 +200,13 @@ declare module '@tanstack/react-router' {
       path: '/app'
       fullPath: '/app'
       preLoaderRoute: typeof AppRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/hot24': {
+      id: '/hot24'
+      path: '/hot24'
+      fullPath: '/hot24'
+      preLoaderRoute: typeof Hot24RouteImport
       parentRoute: typeof rootRouteImport
     }
     '/ja': {
@@ -258,6 +278,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppRoute: AppRoute,
+  Hot24Route: Hot24Route,
   JaRoute: JaRoute,
   LoginRoute: LoginRoute,
   LokalRoute: LokalRoute,
